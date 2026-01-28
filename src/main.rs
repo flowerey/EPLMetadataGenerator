@@ -28,12 +28,10 @@ async fn main() {
     if args.len() < 5 {
         eprintln!("Not enough arguments, expected 4");
         eprintln!("1) URL to Maven metadata XML");
-        eprintln!(
-            "2) Ely.by Authlib download URL format string ({{}} will be replaced with the version"
-        );
+        eprintln!("2) Ely.by Authlib download URL format string ({{}} will be replaced with the version");
         eprintln!("3) authlib-injector download URL");
         eprintln!("4) Output file name");
-        return;
+        return
     }
 
     let _program_name = &args[0];
@@ -46,57 +44,30 @@ async fn main() {
 
     let injector_download = http_client.get(injector_download_url).send();
 
-    let metadata = http_client
-        .get(metadata_url)
-        .send()
-        .await
+    let metadata = http_client.get(metadata_url).send().await
         .expect("Couldn't download Maven metadata")
-        .text()
-        .await
+        .text().await
         .expect("Couldn't get text from metadata response");
     let metadata_doc = Document::parse(&metadata).expect("Couldn't parse Maven metadata");
 
-    let metadata_versions: Vec<Node> = metadata_doc
-        .descendants()
-        .find(|n| n.has_tag_name("metadata"))
-        .unwrap()
-        .children()
-        .find(|n| n.has_tag_name("versioning"))
-        .unwrap()
-        .children()
-        .find(|n| n.has_tag_name("versions"))
-        .unwrap()
-        .children()
-        .filter(|n| n.has_tag_name("version"))
-        .collect();
+    let metadata_versions: Vec<Node> = metadata_doc.descendants().find(|n| { n.has_tag_name("metadata") }).unwrap()
+        .children().find(|n| n.has_tag_name("versioning")).unwrap()
+        .children().find(|n| n.has_tag_name("versions")).unwrap()
+        .children().filter(|n| n.has_tag_name("version")).collect();
 
     let mut authlib_versions_to_full_versions: HashMap<String, &str> = HashMap::new();
     for version in metadata_versions {
         let full_version = version.text().unwrap();
         let authlib_version = full_version.split('-').collect::<Vec<_>>()[0];
 
-        if let Some((_, existing)) =
-            authlib_versions_to_full_versions.get_key_value(authlib_version)
-        {
-            let existing_patch_number: i32 = existing
-                .split('.')
-                .collect::<Vec<_>>()
-                .last()
-                .unwrap()
-                .parse()
-                .unwrap();
-            let new_patch_number: i32 = full_version
-                .split('.')
-                .collect::<Vec<_>>()
-                .last()
-                .unwrap()
-                .parse()
-                .unwrap();
+        if let Some((_, existing)) = authlib_versions_to_full_versions.get_key_value(authlib_version) {
+            let existing_patch_number: i32 = existing.split('.').collect::<Vec<_>>().last().unwrap().parse().unwrap();
+            let new_patch_number: i32 = full_version.split('.').collect::<Vec<_>>().last().unwrap().parse().unwrap();
 
             if new_patch_number > existing_patch_number {
                 authlib_versions_to_full_versions.remove(authlib_version);
             } else {
-                continue;
+                continue
             }
         }
 
@@ -119,9 +90,7 @@ async fn main() {
 
     let authlib_metadata_futures = authlib_versions.iter().map(|version| {
         let client = &http_client;
-        let full_version = authlib_versions_to_full_versions
-            .get(&version.to_string())
-            .unwrap();
+        let full_version = authlib_versions_to_full_versions.get(&version.to_string()).unwrap();
         async move {
             let url = authlib_download_url_format.replace("{}", full_version);
             let response = client.get(&url).send().await?.bytes().await?;
@@ -132,7 +101,7 @@ async fn main() {
                 name: format!("by.ely:authlib:{}", full_version),
                 url,
                 sha1,
-                size,
+                size
             })
         }
     });
@@ -144,17 +113,12 @@ async fn main() {
     for metadata_result in authlib_metadatas {
         match metadata_result {
             Ok(metadata) => {
-                overrides
-                    .insert(
-                        &metadata.target_version,
-                        json::object! {
-                            name: metadata.name,
-                            url: metadata.url,
-                            sha1: metadata.sha1,
-                            size: metadata.size
-                        },
-                    )
-                    .unwrap();
+                overrides.insert(&metadata.target_version, json::object! {
+                    name: metadata.name,
+                    url: metadata.url,
+                    sha1: metadata.sha1,
+                    size: metadata.size
+                }).unwrap();
             }
             Err(why) => {
                 eprintln!("Couldn't create library metadata: {}", why);
@@ -167,8 +131,7 @@ async fn main() {
 
     match injector_download.await {
         Ok(_) => {
-            json["extras"]["authlib-injector"] =
-                json::JsonValue::from(injector_download_url.to_string());
+            json["extras"]["authlib-injector"] = json::JsonValue::from(injector_download_url.to_string());
         }
         Err(why) => {
             eprintln!("Couldn't retrieve authlib-injector: {}", why);
@@ -184,5 +147,5 @@ struct LibraryOverrideMetadata {
     name: String,
     url: String,
     sha1: String,
-    size: usize,
+    size: usize
 }
